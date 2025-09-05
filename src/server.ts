@@ -105,7 +105,7 @@ app.post('/mcp', async (req, res) => {
         },
         // Enable DNS rebinding protection for security
         enableDnsRebindingProtection: true,
-        allowedHosts: ['127.0.0.1', 'localhost', process.env.SERVER_URL || 'ayamcp-hgigs.onrender.com']
+        allowedHosts: ['127.0.0.1', 'localhost', process.env.SERVER_HOST || 'ayamcp-hgigs.onrender.com']
       });
 
       // Clean up transport when closed
