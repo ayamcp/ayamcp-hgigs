@@ -62,15 +62,57 @@ The server will start on `http://localhost:3000`
 
 ## Environment Variables
 
-### Required for Transaction Submission
+Create a `.env` file in the project root using `.env.example` as a template:
+
+```bash
+cp .env.example .env
+```
+
+### Core Configuration
+
+#### Hedera Blockchain (Required for Gig Marketplace)
 - `HEDERA_PRIVATE_KEY`: Your Hedera account private key (64-character hex string without 0x prefix)
 
-### Optional
+#### Server Configuration
 - `PORT`: Server port (default: 3000, automatically set by deployment platforms)
-- `NODE_ENV`: Environment mode (development/production)
+- `SERVER_HOST`: Your server hostname (for production deployments)
+- `SERVER_URL`: Full server URL for MCP connections
+
+### Payment Provider Configuration (Optional)
+
+#### NowPayments
+- `NOWPAYMENTS_API_KEY`: Your NowPayments API key
+- `NOWPAYMENTS_IPN_SECRET`: IPN secret for webhook verification
+- `NOWPAYMENTS_SANDBOX`: Set to `true` for sandbox mode, `false` for production
+
+#### CoinPayments
+- `COINPAYMENTS_PUBLIC_KEY`: Your CoinPayments public key
+- `COINPAYMENTS_PRIVATE_KEY`: Your CoinPayments private key
+- `COINPAYMENTS_IPN_SECRET`: IPN secret for webhook verification
+- `COINPAYMENTS_MERCHANT_ID`: Your CoinPayments merchant ID
+
+#### Coinbase Commerce
+- `COINBASE_COMMERCE_API_KEY`: Your Coinbase Commerce API key
+- `COINBASE_COMMERCE_WEBHOOK_SECRET`: Webhook secret for signature verification
+
+### Webhook URLs
+
+Configure webhook URLs based on your deployment:
+
+**Local Development:**
+- NowPayments: `http://localhost:3000/webhook/nowpayments`
+- CoinPayments: `http://localhost:3000/webhook/coinpayments`
+- Coinbase Commerce: `http://localhost:3000/webhook/coinbase-commerce`
+
+**Production (example with Render):**
+- NowPayments: `https://ayamcp-hgigs.onrender.com/webhook/nowpayments`
+- CoinPayments: `https://ayamcp-hgigs.onrender.com/webhook/coinpayments`
+- Coinbase Commerce: `https://ayamcp-hgigs.onrender.com/webhook/coinbase-commerce`
 
 ### Claude Desktop Configuration
-Add to your Claude Desktop MCP settings:
+
+Add to your Claude Desktop MCP settings in `~/.config/claude-desktop/config.json`:
+
 ```json
 {
   "mcpServers": {
@@ -78,12 +120,18 @@ Add to your Claude Desktop MCP settings:
       "command": "node",
       "args": ["path/to/ayamcp-hgigs/dist/server.js"],
       "env": {
-        "HEDERA_PRIVATE_KEY": "your_private_key_here"
+        "HEDERA_PRIVATE_KEY": "your_hedera_private_key_here",
+        "NOWPAYMENTS_API_KEY": "your_nowpayments_api_key_here",
+        "COINPAYMENTS_PUBLIC_KEY": "your_coinpayments_public_key_here",
+        "COINPAYMENTS_PRIVATE_KEY": "your_coinpayments_private_key_here",
+        "COINBASE_COMMERCE_API_KEY": "your_coinbase_commerce_api_key_here"
       }
     }
   }
 }
 ```
+
+**Security Note:** Only include the environment variables you need. For read-only operations, you only need the respective API keys. For blockchain transactions, you need the `HEDERA_PRIVATE_KEY`.
 
 ## Usage Examples
 
@@ -133,6 +181,7 @@ curl -X POST http://localhost:3000/mcp \
 - `gig-marketplace-get-order`: Get details of a specific order  
 - `gig-marketplace-get-provider-gigs`: Get all gig IDs for a provider
 - `gig-marketplace-get-client-orders`: Get all order IDs for a client
+- `gig-marketplace-get-active-gigs`: Get all active gigs from the marketplace
 - `gig-marketplace-get-stats`: Get marketplace statistics
 
 ### Transaction Data Generation
