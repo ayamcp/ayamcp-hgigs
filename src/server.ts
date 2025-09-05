@@ -108,6 +108,7 @@ app.post('/mcp', async (req, res) => {
         allowedHosts: ['127.0.0.1', 'localhost', process.env.SERVER_HOST || 'ayamcp-hgigs.onrender.com']
       });
 
+      console.log('allowedHosts', process.env.SERVER_HOST);
       // Clean up transport when closed
       transport.onclose = () => {
         if (transport.sessionId) {
