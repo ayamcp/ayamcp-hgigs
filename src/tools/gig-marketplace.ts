@@ -5,6 +5,52 @@ import { ethers } from 'ethers';
 const CONTRACT_ADDRESS = '0x47fe84b56840a20BF579300207EBBaBc615AE1e9';
 const HEDERA_TESTNET_RPC = 'https://testnet.hashio.io/api';
 
+// Network information
+const NETWORK_INFO = {
+  name: 'Hedera Testnet',
+  chainId: 296,
+  nativeToken: {
+    symbol: 'HBAR',
+    name: 'Hedera Hashgraph',
+    decimals: 18
+  },
+  explorer: 'https://hashscan.io/testnet'
+};
+
+// Common token addresses on Hedera Testnet (add more as needed)
+const KNOWN_TOKENS: Record<string, { symbol: string; name: string; decimals: number }> = {
+  '0x0000000000000000000000000000000000000000': {
+    symbol: 'HBAR',
+    name: 'Hedera Hashgraph',
+    decimals: 18
+  }
+  // Add more token addresses as they become available
+};
+
+// Function to resolve token information
+function getTokenInfo(tokenAddress: string) {
+  const normalizedAddress = tokenAddress.toLowerCase();
+  const knownToken = KNOWN_TOKENS[normalizedAddress] || KNOWN_TOKENS['0x0000000000000000000000000000000000000000'];
+  
+  if (normalizedAddress === '0x0000000000000000000000000000000000000000') {
+    return {
+      address: tokenAddress,
+      symbol: NETWORK_INFO.nativeToken.symbol,
+      name: NETWORK_INFO.nativeToken.name,
+      decimals: NETWORK_INFO.nativeToken.decimals,
+      isNative: true
+    };
+  }
+  
+  return {
+    address: tokenAddress,
+    symbol: knownToken.symbol,
+    name: knownToken.name,
+    decimals: knownToken.decimals,
+    isNative: false
+  };
+}
+
 // Get private key from environment variable
 const PRIVATE_KEY = process.env.HEDERA_PRIVATE_KEY;
 
@@ -46,6 +92,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
         const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, provider);
         
         const gig = await contract.getGig(gigId);
+        const tokenInfo = getTokenInfo(gig[7]);
         
         return {
           content: [{ 
@@ -58,7 +105,18 @@ export function registerGigMarketplaceTool(server: McpServer) {
               price: gig[4].toString(),
               isActive: gig[5],
               isCompleted: gig[6],
-              token: gig[7]
+              token: {
+                address: gig[7],
+                symbol: tokenInfo.symbol,
+                name: tokenInfo.name,
+                decimals: tokenInfo.decimals,
+                isNative: tokenInfo.isNative
+              },
+              network: {
+                name: NETWORK_INFO.name,
+                chainId: NETWORK_INFO.chainId,
+                explorer: NETWORK_INFO.explorer
+              }
             }, null, 2)
           }]
         };
@@ -252,22 +310,36 @@ export function registerGigMarketplaceTool(server: McpServer) {
         
         const activeGigs = await contract.getAllActiveGigs();
         
-        const formattedGigs = activeGigs.map((gig: any) => ({
-          id: gig[0].toString(),
-          provider: gig[1],
-          title: gig[2],
-          description: gig[3],
-          price: gig[4].toString(),
-          isActive: gig[5],
-          isCompleted: gig[6],
-          token: gig[7]
-        }));
+        const formattedGigs = activeGigs.map((gig: any) => {
+          const tokenInfo = getTokenInfo(gig[7]);
+          return {
+            id: gig[0].toString(),
+            provider: gig[1],
+            title: gig[2],
+            description: gig[3],
+            price: gig[4].toString(),
+            isActive: gig[5],
+            isCompleted: gig[6],
+            token: {
+              address: gig[7],
+              symbol: tokenInfo.symbol,
+              name: tokenInfo.name,
+              decimals: tokenInfo.decimals,
+              isNative: tokenInfo.isNative
+            }
+          };
+        });
         
         return {
           content: [{ 
             type: 'text', 
             text: JSON.stringify({
               totalActiveGigs: formattedGigs.length,
+              network: {
+                name: NETWORK_INFO.name,
+                chainId: NETWORK_INFO.chainId,
+                explorer: NETWORK_INFO.explorer
+              },
               activeGigs: formattedGigs
             }, null, 2)
           }]
