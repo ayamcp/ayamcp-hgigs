@@ -11,18 +11,18 @@ const PRIVATE_KEY = process.env.HEDERA_PRIVATE_KEY;
 // GigMarketplace ABI - focused on read functions and common operations
 const GIG_MARKETPLACE_ABI = [
   // Read functions
-  'function getGig(uint256 _gigId) external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted))',
+  'function getGig(uint256 _gigId) external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted, address token))',
   'function getOrder(uint256 _orderId) external view returns (tuple(uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, uint256 createdAt))',
   'function getProviderGigs(address _provider) external view returns (uint256[])',
   'function getClientOrders(address _client) external view returns (uint256[])',
-  'function getAllActiveGigs() external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted)[])',
+  'function getAllActiveGigs() external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted, address token)[])',
   'function nextGigId() external view returns (uint256)',
   'function nextOrderId() external view returns (uint256)',
   'function platformFeePercent() external view returns (uint256)',
   
   // Write functions (for data preparation)
-  'function createGig(string memory _title, string memory _description, uint256 _price) external',
-  'function updateGig(uint256 _gigId, string memory _title, string memory _description, uint256 _price) external',
+  'function createGig(string memory _title, string memory _description, uint256 _price, address _token) external',
+  'function updateGig(uint256 _gigId, string memory _title, string memory _description, uint256 _price, address _token) external',
   'function deactivateGig(uint256 _gigId) external',
   'function orderGig(uint256 _gigId) external payable',
   'function completeOrder(uint256 _orderId) external',
@@ -57,7 +57,8 @@ export function registerGigMarketplaceTool(server: McpServer) {
               description: gig[3],
               price: gig[4].toString(),
               isActive: gig[5],
-              isCompleted: gig[6]
+              isCompleted: gig[6],
+              token: gig[7]
             }, null, 2)
           }]
         };
@@ -258,7 +259,8 @@ export function registerGigMarketplaceTool(server: McpServer) {
           description: gig[3],
           price: gig[4].toString(),
           isActive: gig[5],
-          isCompleted: gig[6]
+          isCompleted: gig[6],
+          token: gig[7]
         }));
         
         return {
@@ -291,13 +293,14 @@ export function registerGigMarketplaceTool(server: McpServer) {
       inputSchema: {
         title: z.string().describe('The gig title'),
         description: z.string().describe('The gig description'),
-        price: z.string().describe('The gig price in wei')
+        price: z.string().describe('The gig price in wei'),
+        token: z.string().describe('The token address (use 0x0000000000000000000000000000000000000000 for native currency)')
       }
     },
-    async ({ title, description, price }) => {
+    async ({ title, description, price, token }) => {
       try {
         const iface = new ethers.Interface(GIG_MARKETPLACE_ABI);
-        const data = iface.encodeFunctionData('createGig', [title, description, price]);
+        const data = iface.encodeFunctionData('createGig', [title, description, price, token]);
         
         return {
           content: [{ 
@@ -333,13 +336,14 @@ export function registerGigMarketplaceTool(server: McpServer) {
         gigId: z.string().describe('The gig ID to update'),
         title: z.string().describe('The new gig title'),
         description: z.string().describe('The new gig description'),
-        price: z.string().describe('The new gig price in wei')
+        price: z.string().describe('The new gig price in wei'),
+        token: z.string().describe('The token address (use 0x0000000000000000000000000000000000000000 for native currency)')
       }
     },
-    async ({ gigId, title, description, price }) => {
+    async ({ gigId, title, description, price, token }) => {
       try {
         const iface = new ethers.Interface(GIG_MARKETPLACE_ABI);
-        const data = iface.encodeFunctionData('updateGig', [gigId, title, description, price]);
+        const data = iface.encodeFunctionData('updateGig', [gigId, title, description, price, token]);
         
         return {
           content: [{ 
@@ -492,10 +496,11 @@ export function registerGigMarketplaceTool(server: McpServer) {
       inputSchema: {
         title: z.string().describe('The gig title'),
         description: z.string().describe('The gig description'),
-        price: z.string().describe('The gig price in wei')
+        price: z.string().describe('The gig price in wei'),
+        token: z.string().describe('The token address (use 0x0000000000000000000000000000000000000000 for native currency)')
       }
     },
-    async ({ title, description, price }) => {
+    async ({ title, description, price, token }) => {
       try {
         if (!PRIVATE_KEY) {
           return {
@@ -512,10 +517,10 @@ export function registerGigMarketplaceTool(server: McpServer) {
         const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, wallet);
 
         // Estimate gas first
-        const gasEstimate = await contract.createGig.estimateGas(title, description, price);
+        const gasEstimate = await contract.createGig.estimateGas(title, description, price, token);
         
         // Submit transaction
-        const tx = await contract.createGig(title, description, price, {
+        const tx = await contract.createGig(title, description, price, token, {
           gasLimit: gasEstimate * 120n / 100n // Add 20% buffer
         });
 
@@ -533,6 +538,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
               status: receipt?.status === 1 ? 'Success' : 'Failed',
               gigTitle: title,
               gigPrice: price,
+              gigToken: token,
               network: 'Hedera Testnet',
               explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
             }, null, 2)
