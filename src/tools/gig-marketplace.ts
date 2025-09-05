@@ -5,6 +5,9 @@ import { ethers } from 'ethers';
 const CONTRACT_ADDRESS = '0x47fe84b56840a20BF579300207EBBaBc615AE1e9';
 const HEDERA_TESTNET_RPC = 'https://testnet.hashio.io/api';
 
+// Get private key from environment variable
+const PRIVATE_KEY = process.env.HEDERA_PRIVATE_KEY;
+
 // GigMarketplace ABI - focused on read functions and common operations
 const GIG_MARKETPLACE_ABI = [
   // Read functions
@@ -426,6 +429,271 @@ export function registerGigMarketplaceTool(server: McpServer) {
           content: [{ 
             type: 'text', 
             text: `Error generating release payment data: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Submit create gig transaction
+  server.registerTool(
+    'gig-marketplace-create-gig',
+    {
+      title: 'Create Gig Transaction',
+      description: 'Submit a transaction to create a gig on the GigMarketplace contract',
+      inputSchema: {
+        title: z.string().describe('The gig title'),
+        description: z.string().describe('The gig description'),
+        price: z.string().describe('The gig price in wei')
+      }
+    },
+    async ({ title, description, price }) => {
+      try {
+        if (!PRIVATE_KEY) {
+          return {
+            content: [{ 
+              type: 'text', 
+              text: 'Error: HEDERA_PRIVATE_KEY environment variable not set. Please configure your private key in Claude Desktop MCP settings.' 
+            }],
+            isError: true
+          };
+        }
+
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, wallet);
+
+        // Estimate gas first
+        const gasEstimate = await contract.createGig.estimateGas(title, description, price);
+        
+        // Submit transaction
+        const tx = await contract.createGig(title, description, price, {
+          gasLimit: gasEstimate * 120n / 100n // Add 20% buffer
+        });
+
+        // Wait for confirmation
+        const receipt = await tx.wait();
+
+        return {
+          content: [{ 
+            type: 'text', 
+            text: JSON.stringify({
+              success: true,
+              transactionHash: tx.hash,
+              blockNumber: receipt?.blockNumber,
+              gasUsed: receipt?.gasUsed?.toString(),
+              status: receipt?.status === 1 ? 'Success' : 'Failed',
+              gigTitle: title,
+              gigPrice: price,
+              network: 'Hedera Testnet',
+              explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: 'text', 
+            text: `Error creating gig: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Submit order gig transaction
+  server.registerTool(
+    'gig-marketplace-order-gig',
+    {
+      title: 'Order Gig Transaction',
+      description: 'Submit a transaction to order a gig on the GigMarketplace contract',
+      inputSchema: {
+        gigId: z.string().describe('The gig ID to order')
+      }
+    },
+    async ({ gigId }) => {
+      try {
+        if (!PRIVATE_KEY) {
+          return {
+            content: [{ 
+              type: 'text', 
+              text: 'Error: HEDERA_PRIVATE_KEY environment variable not set. Please configure your private key in Claude Desktop MCP settings.' 
+            }],
+            isError: true
+          };
+        }
+
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, wallet);
+
+        // First get the gig details to know the price
+        const gig = await contract.getGig(gigId);
+        const gigPrice = gig[4]; // price is at index 4
+
+        // Estimate gas
+        const gasEstimate = await contract.orderGig.estimateGas(gigId, { value: gigPrice });
+        
+        // Submit transaction
+        const tx = await contract.orderGig(gigId, {
+          value: gigPrice,
+          gasLimit: gasEstimate * 120n / 100n
+        });
+
+        // Wait for confirmation
+        const receipt = await tx.wait();
+
+        return {
+          content: [{ 
+            type: 'text', 
+            text: JSON.stringify({
+              success: true,
+              transactionHash: tx.hash,
+              blockNumber: receipt?.blockNumber,
+              gasUsed: receipt?.gasUsed?.toString(),
+              status: receipt?.status === 1 ? 'Success' : 'Failed',
+              gigId: gigId,
+              paidAmount: gigPrice.toString(),
+              network: 'Hedera Testnet',
+              explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: 'text', 
+            text: `Error ordering gig: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Submit complete order transaction
+  server.registerTool(
+    'gig-marketplace-complete-order',
+    {
+      title: 'Complete Order Transaction',
+      description: 'Submit a transaction to complete an order on the GigMarketplace contract',
+      inputSchema: {
+        orderId: z.string().describe('The order ID to complete')
+      }
+    },
+    async ({ orderId }) => {
+      try {
+        if (!PRIVATE_KEY) {
+          return {
+            content: [{ 
+              type: 'text', 
+              text: 'Error: HEDERA_PRIVATE_KEY environment variable not set. Please configure your private key in Claude Desktop MCP settings.' 
+            }],
+            isError: true
+          };
+        }
+
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, wallet);
+
+        // Estimate gas
+        const gasEstimate = await contract.completeOrder.estimateGas(orderId);
+        
+        // Submit transaction
+        const tx = await contract.completeOrder(orderId, {
+          gasLimit: gasEstimate * 120n / 100n
+        });
+
+        // Wait for confirmation
+        const receipt = await tx.wait();
+
+        return {
+          content: [{ 
+            type: 'text', 
+            text: JSON.stringify({
+              success: true,
+              transactionHash: tx.hash,
+              blockNumber: receipt?.blockNumber,
+              gasUsed: receipt?.gasUsed?.toString(),
+              status: receipt?.status === 1 ? 'Success' : 'Failed',
+              orderId: orderId,
+              network: 'Hedera Testnet',
+              explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: 'text', 
+            text: `Error completing order: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Submit release payment transaction
+  server.registerTool(
+    'gig-marketplace-release-payment',
+    {
+      title: 'Release Payment Transaction',
+      description: 'Submit a transaction to release payment for an order on the GigMarketplace contract',
+      inputSchema: {
+        orderId: z.string().describe('The order ID to release payment for')
+      }
+    },
+    async ({ orderId }) => {
+      try {
+        if (!PRIVATE_KEY) {
+          return {
+            content: [{ 
+              type: 'text', 
+              text: 'Error: HEDERA_PRIVATE_KEY environment variable not set. Please configure your private key in Claude Desktop MCP settings.' 
+            }],
+            isError: true
+          };
+        }
+
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, wallet);
+
+        // Estimate gas
+        const gasEstimate = await contract.releasePayment.estimateGas(orderId);
+        
+        // Submit transaction
+        const tx = await contract.releasePayment(orderId, {
+          gasLimit: gasEstimate * 120n / 100n
+        });
+
+        // Wait for confirmation
+        const receipt = await tx.wait();
+
+        return {
+          content: [{ 
+            type: 'text', 
+            text: JSON.stringify({
+              success: true,
+              transactionHash: tx.hash,
+              blockNumber: receipt?.blockNumber,
+              gasUsed: receipt?.gasUsed?.toString(),
+              status: receipt?.status === 1 ? 'Success' : 'Failed',
+              orderId: orderId,
+              network: 'Hedera Testnet',
+              explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: 'text', 
+            text: `Error releasing payment: ${error instanceof Error ? error.message : 'Unknown error'}` 
           }],
           isError: true
         };

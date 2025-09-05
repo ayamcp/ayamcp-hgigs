@@ -41,5 +41,9 @@ export const TOOL_NAMES = [
   'gig-marketplace-update-gig-data',
   'gig-marketplace-order-gig-data',
   'gig-marketplace-complete-order-data',
-  'gig-marketplace-release-payment-data'
+  'gig-marketplace-release-payment-data',
+  'gig-marketplace-create-gig',
+  'gig-marketplace-order-gig',
+  'gig-marketplace-complete-order',
+  'gig-marketplace-release-payment'
 ];
