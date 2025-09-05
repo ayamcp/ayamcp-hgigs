@@ -50,6 +50,7 @@ export const TOOL_NAMES = [
   'gig-marketplace-get-client-orders',
   'gig-marketplace-get-stats',
   'gig-marketplace-get-active-gigs',
+  'gig-marketplace-generate-payment-qr',
   'gig-marketplace-create-gig-data',
   'gig-marketplace-update-gig-data',
   'gig-marketplace-order-gig-data',
