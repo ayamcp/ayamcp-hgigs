@@ -15,6 +15,7 @@ const GIG_MARKETPLACE_ABI = [
   'function getOrder(uint256 _orderId) external view returns (tuple(uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, uint256 createdAt))',
   'function getProviderGigs(address _provider) external view returns (uint256[])',
   'function getClientOrders(address _client) external view returns (uint256[])',
+  'function getAllActiveGigs() external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted)[])',
   'function nextGigId() external view returns (uint256)',
   'function nextOrderId() external view returns (uint256)',
   'function platformFeePercent() external view returns (uint256)',
@@ -228,6 +229,52 @@ export function registerGigMarketplaceTool(server: McpServer) {
           content: [{ 
             type: 'text', 
             text: `Error getting marketplace stats: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Get all active gigs
+  server.registerTool(
+    'gig-marketplace-get-active-gigs',
+    {
+      title: 'Get All Active Gigs',
+      description: 'Get all active gigs from the GigMarketplace contract on Hedera',
+      inputSchema: {}
+    },
+    async () => {
+      try {
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, provider);
+        
+        const activeGigs = await contract.getAllActiveGigs();
+        
+        const formattedGigs = activeGigs.map((gig: any) => ({
+          id: gig[0].toString(),
+          provider: gig[1],
+          title: gig[2],
+          description: gig[3],
+          price: gig[4].toString(),
+          isActive: gig[5],
+          isCompleted: gig[6]
+        }));
+        
+        return {
+          content: [{ 
+            type: 'text', 
+            text: JSON.stringify({
+              totalActiveGigs: formattedGigs.length,
+              activeGigs: formattedGigs
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: 'text', 
+            text: `Error getting active gigs: ${error instanceof Error ? error.message : 'Unknown error'}` 
           }],
           isError: true
         };
