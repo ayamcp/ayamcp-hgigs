@@ -8,6 +8,7 @@ import { registerDpollsCreatePollDataTool } from './dpolls-create-poll-data.js';
 import { registerDpollsVoteDataTool } from './dpolls-vote-data.js';
 import { registerGigMarketplaceTool } from './gig-marketplace.js';
 import { registerNowPaymentsTool } from './nowpayments.js';
+import { registerCoinPaymentsTool } from './coinpayments.js';
 
 export function registerAllTools(server: McpServer) {
   // Basic tools
@@ -26,6 +27,9 @@ export function registerAllTools(server: McpServer) {
   
   // NowPayments tools
   registerNowPaymentsTool(server);
+  
+  // CoinPayments tools
+  registerCoinPaymentsTool(server);
 }
 
 export const TOOL_NAMES = [
@@ -54,5 +58,11 @@ export const TOOL_NAMES = [
   'nowpayments-get-estimate',
   'nowpayments-create-invoice',
   'nowpayments-get-payment-status',
-  'nowpayments-verify-webhook'
+  'nowpayments-verify-webhook',
+  'coinpayments-get-rates',
+  'coinpayments-create-transaction',
+  'coinpayments-get-transaction-info',
+  'coinpayments-verify-ipn',
+  'coinpayments-get-supported-coins',
+  'coinpayments-convert'
 ];

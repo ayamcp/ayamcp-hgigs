@@ -181,6 +181,115 @@ app.delete('/mcp', async (req, res) => {
   }
 });
 
+// CoinPayments webhook endpoint (IPN)
+app.post('/webhook/coinpayments', (req, res) => {
+  try {
+    const hmacSignature = req.headers['hmac'] as string;
+    
+    // Get raw POST data
+    const postData = Object.keys(req.body)
+      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(req.body[key])}`)
+      .join('&');
+
+    console.log('Received CoinPayments IPN:', {
+      hmac: hmacSignature,
+      body: req.body,
+      timestamp: new Date().toISOString()
+    });
+
+    // Verify IPN signature if secret is configured
+    const ipnSecret = process.env.COINPAYMENTS_IPN_SECRET;
+    if (ipnSecret && hmacSignature) {
+      const computedHmac = crypto
+        .createHmac('sha512', ipnSecret)
+        .update(postData)
+        .digest('hex');
+
+      if (computedHmac !== hmacSignature) {
+        console.error('Invalid CoinPayments IPN signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+    }
+
+    // Process IPN data
+    const {
+      txn_id,
+      status,
+      status_text,
+      currency1,
+      currency2,
+      amount1,
+      amount2,
+      fee,
+      buyer_name,
+      email,
+      item_name,
+      item_number,
+      invoice,
+      custom,
+      ipn_version,
+      ipn_type,
+      merchant,
+      received_amount,
+      received_confirms
+    } = req.body;
+
+    console.log(`CoinPayments transaction ${txn_id} status: ${status} (${status_text})`, {
+      currency1,
+      currency2,
+      amount1,
+      amount2,
+      fee,
+      buyer_name,
+      email,
+      item_name,
+      item_number,
+      invoice,
+      custom,
+      received_amount,
+      received_confirms
+    });
+
+    // Process different payment statuses
+    switch (parseInt(status)) {
+      case -1:
+        console.log(`Payment ${txn_id} cancelled/timed out`);
+        break;
+      case 0:
+        console.log(`Payment ${txn_id} waiting for buyer funds`);
+        break;
+      case 1:
+        console.log(`Payment ${txn_id} confirmed - coin reception confirmed`);
+        break;
+      case 2:
+        console.log(`Payment ${txn_id} queued for payout`);
+        break;
+      case 3:
+        console.log(`Payment ${txn_id} payout sent successfully`);
+        break;
+      case 100:
+        console.log(`Payment ${txn_id} completed successfully`);
+        // Process successful payment - e.g., call gig marketplace contract
+        break;
+      default:
+        console.log(`Unknown payment status: ${status} for transaction ${txn_id}`);
+    }
+
+    // Here you would typically:
+    // 1. Update your database with the payment status
+    // 2. Process the order based on status
+    // 3. Send notifications to users
+    // 4. Update gig marketplace contract if needed
+
+    // Always respond with 200 OK to acknowledge receipt
+    res.status(200).send('IPN received');
+
+  } catch (error) {
+    console.error('Error processing CoinPayments IPN:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // NowPayments webhook endpoint
 app.post('/webhook/nowpayments', (req, res) => {
   try {
@@ -309,7 +418,8 @@ app.get('/', (_req, res) => {
     endpoints: {
       mcp: '/mcp',
       health: '/health',
-      webhook_nowpayments: '/webhook/nowpayments'
+      webhook_nowpayments: '/webhook/nowpayments',
+      webhook_coinpayments: '/webhook/coinpayments'
     },
     tools: TOOL_NAMES,
     resources: ['config://server', 'status://{component}']
