@@ -181,6 +181,111 @@ app.delete('/mcp', async (req, res) => {
   }
 });
 
+// Coinbase Commerce webhook endpoint
+app.post('/webhook/coinbase-commerce', (req, res) => {
+  try {
+    const signature = req.headers['x-cc-webhook-signature'] as string;
+    const rawBody = JSON.stringify(req.body);
+
+    console.log('Received Coinbase Commerce webhook:', {
+      signature,
+      body: req.body,
+      timestamp: new Date().toISOString()
+    });
+
+    // Verify webhook signature if secret is configured
+    const webhookSecret = process.env.COINBASE_COMMERCE_WEBHOOK_SECRET;
+    if (webhookSecret && signature) {
+      const computedSignature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(rawBody)
+        .digest('hex');
+
+      if (computedSignature !== signature) {
+        console.error('Invalid Coinbase Commerce webhook signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+    }
+
+    // Process webhook data
+    const {
+      id,
+      type,
+      api_version,
+      created_at,
+      data
+    } = req.body;
+
+    const charge = data;
+    const {
+      id: charge_id,
+      code: charge_code,
+      name,
+      description,
+      pricing,
+      payments,
+      timeline,
+      metadata,
+      addresses
+    } = charge;
+
+    console.log(`Coinbase Commerce event ${type} for charge ${charge_id} (${charge_code})`, {
+      name,
+      description,
+      local_amount: pricing?.local?.amount,
+      local_currency: pricing?.local?.currency,
+      payments_count: payments?.length || 0,
+      current_status: timeline?.[timeline?.length - 1]?.status,
+      metadata,
+      addresses
+    });
+
+    // Process different event types
+    switch (type) {
+      case 'charge:created':
+        console.log(`Charge ${charge_id} created: ${name}`);
+        break;
+      case 'charge:confirmed':
+        console.log(`Charge ${charge_id} confirmed - payment received and confirmed`);
+        // Process successful payment - e.g., call gig marketplace contract
+        break;
+      case 'charge:failed':
+        console.log(`Charge ${charge_id} failed`);
+        break;
+      case 'charge:delayed':
+        console.log(`Charge ${charge_id} delayed - payment detected but not confirmed yet`);
+        break;
+      case 'charge:pending':
+        console.log(`Charge ${charge_id} pending - payment received, waiting for confirmations`);
+        break;
+      case 'charge:resolved':
+        console.log(`Charge ${charge_id} resolved - previously unresolved charge has been resolved`);
+        break;
+      default:
+        console.log(`Unknown Coinbase Commerce event type: ${type}`);
+    }
+
+    // Here you would typically:
+    // 1. Update your database with the charge status
+    // 2. Process the order based on event type
+    // 3. Send notifications to users
+    // 4. Update gig marketplace contract if needed
+
+    // Always respond with 200 OK to acknowledge receipt
+    res.status(200).json({ 
+      status: 'received',
+      event_id: id,
+      event_type: type,
+      charge_id: charge_id,
+      processed_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error processing Coinbase Commerce webhook:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // CoinPayments webhook endpoint (IPN)
 app.post('/webhook/coinpayments', (req, res) => {
   try {
@@ -419,7 +524,8 @@ app.get('/', (_req, res) => {
       mcp: '/mcp',
       health: '/health',
       webhook_nowpayments: '/webhook/nowpayments',
-      webhook_coinpayments: '/webhook/coinpayments'
+      webhook_coinpayments: '/webhook/coinpayments',
+      webhook_coinbase_commerce: '/webhook/coinbase-commerce'
     },
     tools: TOOL_NAMES,
     resources: ['config://server', 'status://{component}']

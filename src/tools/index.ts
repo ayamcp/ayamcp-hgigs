@@ -9,6 +9,7 @@ import { registerDpollsVoteDataTool } from './dpolls-vote-data.js';
 import { registerGigMarketplaceTool } from './gig-marketplace.js';
 import { registerNowPaymentsTool } from './nowpayments.js';
 import { registerCoinPaymentsTool } from './coinpayments.js';
+import { registerCoinbaseCommerceTool } from './coinbase-commerce.js';
 
 export function registerAllTools(server: McpServer) {
   // Basic tools
@@ -30,6 +31,9 @@ export function registerAllTools(server: McpServer) {
   
   // CoinPayments tools
   registerCoinPaymentsTool(server);
+  
+  // Coinbase Commerce tools
+  registerCoinbaseCommerceTool(server);
 }
 
 export const TOOL_NAMES = [
@@ -64,5 +68,11 @@ export const TOOL_NAMES = [
   'coinpayments-get-transaction-info',
   'coinpayments-verify-ipn',
   'coinpayments-get-supported-coins',
-  'coinpayments-convert'
+  'coinpayments-convert',
+  'coinbase-commerce-create-charge',
+  'coinbase-commerce-get-charge',
+  'coinbase-commerce-list-charges',
+  'coinbase-commerce-verify-webhook',
+  'coinbase-commerce-cancel-charge',
+  'coinbase-commerce-resolve-charge'
 ];
