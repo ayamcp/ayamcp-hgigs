@@ -7,6 +7,7 @@ import { registerDpollsGetPollCountTool } from './dpolls-get-poll-count.js';
 import { registerDpollsCreatePollDataTool } from './dpolls-create-poll-data.js';
 import { registerDpollsVoteDataTool } from './dpolls-vote-data.js';
 import { registerGigMarketplaceTool } from './gig-marketplace.js';
+import { registerNowPaymentsTool } from './nowpayments.js';
 
 export function registerAllTools(server: McpServer) {
   // Basic tools
@@ -22,6 +23,9 @@ export function registerAllTools(server: McpServer) {
   
   // Gig Marketplace tools
   registerGigMarketplaceTool(server);
+  
+  // NowPayments tools
+  registerNowPaymentsTool(server);
 }
 
 export const TOOL_NAMES = [
@@ -45,5 +49,10 @@ export const TOOL_NAMES = [
   'gig-marketplace-create-gig',
   'gig-marketplace-order-gig',
   'gig-marketplace-complete-order',
-  'gig-marketplace-release-payment'
+  'gig-marketplace-release-payment',
+  'nowpayments-get-currencies',
+  'nowpayments-get-estimate',
+  'nowpayments-create-invoice',
+  'nowpayments-get-payment-status',
+  'nowpayments-verify-webhook'
 ];

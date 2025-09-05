@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { randomUUID } from 'node:crypto';
+import crypto from 'crypto';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
@@ -180,6 +181,115 @@ app.delete('/mcp', async (req, res) => {
   }
 });
 
+// NowPayments webhook endpoint
+app.post('/webhook/nowpayments', (req, res) => {
+  try {
+    const signature = req.headers['x-nowpayments-sig'] as string;
+    const webhookBody = req.body;
+
+    console.log('Received NowPayments webhook:', {
+      signature,
+      body: webhookBody,
+      timestamp: new Date().toISOString()
+    });
+
+    // Verify webhook signature if IPN secret is configured
+    const ipnSecret = process.env.NOWPAYMENTS_IPN_SECRET;
+    if (ipnSecret && signature) {
+      // Sort parameters alphabetically
+      const sortedParams = Object.keys(webhookBody)
+        .sort()
+        .reduce((result: any, key) => {
+          result[key] = webhookBody[key];
+          return result;
+        }, {});
+
+      // Create JSON string with sorted keys
+      const sortedJson = JSON.stringify(sortedParams);
+
+      // Create HMAC-SHA512 hash
+      const computedSignature = crypto
+        .createHmac('sha512', ipnSecret)
+        .update(sortedJson)
+        .digest('hex');
+
+      if (computedSignature !== signature) {
+        console.error('Invalid webhook signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+    }
+
+    // Process webhook data
+    const {
+      payment_id,
+      payment_status,
+      order_id,
+      pay_amount,
+      pay_currency,
+      price_amount,
+      price_currency,
+      actually_paid,
+      purchase_id,
+      created_at,
+      updated_at
+    } = webhookBody;
+
+    console.log(`Payment ${payment_id} for order ${order_id} status: ${payment_status}`, {
+      pay_amount,
+      pay_currency,
+      price_amount,
+      price_currency,
+      actually_paid,
+      purchase_id,
+      created_at,
+      updated_at
+    });
+
+    // Here you would typically:
+    // 1. Update your database with the payment status
+    // 2. Process the order based on payment_status
+    // 3. Send notifications to users
+    // 4. Update gig marketplace contract if needed
+
+    switch (payment_status) {
+      case 'waiting':
+        console.log(`Payment ${payment_id} is waiting for payment`);
+        break;
+      case 'confirming':
+        console.log(`Payment ${payment_id} received, waiting for confirmations`);
+        break;
+      case 'confirmed':
+        console.log(`Payment ${payment_id} confirmed on blockchain`);
+        break;
+      case 'finished':
+        console.log(`Payment ${payment_id} completed successfully for order ${order_id}`);
+        // Process successful payment - e.g., call gig marketplace contract
+        break;
+      case 'partially_paid':
+        console.log(`Payment ${payment_id} partially paid: ${actually_paid}/${pay_amount} ${pay_currency}`);
+        break;
+      case 'failed':
+      case 'expired':
+        console.log(`Payment ${payment_id} ${payment_status} for order ${order_id}`);
+        break;
+      default:
+        console.log(`Unknown payment status: ${payment_status}`);
+    }
+
+    // Always respond with 200 OK to acknowledge receipt
+    res.status(200).json({ 
+      status: 'received',
+      payment_id,
+      payment_status,
+      processed_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error processing NowPayments webhook:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.json({
@@ -198,7 +308,8 @@ app.get('/', (_req, res) => {
     description: 'A simple Model Context Protocol server with Streamable HTTP transport',
     endpoints: {
       mcp: '/mcp',
-      health: '/health'
+      health: '/health',
+      webhook_nowpayments: '/webhook/nowpayments'
     },
     tools: TOOL_NAMES,
     resources: ['config://server', 'status://{component}']
