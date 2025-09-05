@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ayamcp-hgigs
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SERVER_URL
+        value: https://ayamcp-hgigs.onrender.com/mcp
