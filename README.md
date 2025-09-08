@@ -78,24 +78,15 @@ cp .env.example .env
 - `SERVER_HOST`: Your server hostname (for production deployments)
 - `SERVER_URL`: Full server URL for MCP connections
 
-### Payment Provider Configuration (Optional)
-
-#### NowPayments
-- `NOWPAYMENTS_API_KEY`: Your NowPayments API key
-- `NOWPAYMENTS_IPN_SECRET`: IPN secret for webhook verification
-- `NOWPAYMENTS_SANDBOX`: Set to `true` for sandbox mode, `false` for production
-
 ### Webhook URLs
 
 Configure webhook URLs based on your deployment:
 
 **Local Development:**
-- NowPayments: `http://localhost:3000/webhook/nowpayments`
-- CoinPayments: `http://localhost:3000/webhook/coinpayments`
-- Coinbase Commerce: `http://localhost:3000/webhook/coinbase-commerce`
+- NowPayments: `http://localhost:3000/webhook/direct-crypto`
 
 **Production (example with Render):**
-- NowPayments: `https://ayamcp-hgigs.onrender.com/webhook/nowpayments`
+- NowPayments: `https://ayamcp-hgigs.onrender.com/webhook/direct-crypto`
 
 ### Claude Desktop Configuration
 
@@ -108,8 +99,7 @@ Add to your Claude Desktop MCP settings in `~/.config/claude-desktop/config.json
       "command": "node",
       "args": ["path/to/ayamcp-hgigs/dist/server.js"],
       "env": {
-        "HEDERA_PRIVATE_KEY": "your_hedera_private_key_here",
-        "NOWPAYMENTS_API_KEY": "your_nowpayments_api_key_here"
+        "HEDERA_PRIVATE_KEY": "your_hedera_private_key_here"
       }
     }
   }
