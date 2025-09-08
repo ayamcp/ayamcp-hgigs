@@ -504,6 +504,142 @@ app.post('/webhook/nowpayments', (req, res) => {
   }
 });
 
+// Direct crypto payment webhook endpoint
+app.post('/webhook/direct-crypto', (req, res) => {
+  try {
+    const signature = req.headers['x-crypto-signature'] as string;
+    const webhookBody = req.body;
+
+    console.log('Received direct crypto payment webhook:', {
+      signature,
+      body: webhookBody,
+      timestamp: new Date().toISOString()
+    });
+
+    // Verify webhook signature if secret is configured
+    const webhookSecret = process.env.DIRECT_CRYPTO_WEBHOOK_SECRET;
+    if (webhookSecret && signature) {
+      const computedSignature = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(JSON.stringify(webhookBody))
+        .digest('hex');
+
+      const expectedSignature = `sha256=${computedSignature}`;
+      
+      if (expectedSignature !== signature) {
+        console.error('Invalid direct crypto payment webhook signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+    }
+
+    // Process webhook data
+    const {
+      transaction_hash,
+      contract_address,
+      from_address,
+      to_address,
+      amount,
+      currency,
+      block_number,
+      block_timestamp,
+      gas_used,
+      gas_price,
+      order_id,
+      gig_id,
+      client_address,
+      provider_address,
+      payment_type, // 'gig_payment', 'escrow_release', 'refund'
+      network, // 'mainnet', 'testnet', 'polygon', etc.
+      confirmations
+    } = webhookBody;
+
+    console.log(`Direct crypto payment detected: ${transaction_hash}`, {
+      contract_address,
+      from_address,
+      to_address,
+      amount,
+      currency,
+      block_number,
+      block_timestamp,
+      gas_used,
+      gas_price,
+      order_id,
+      gig_id,
+      client_address,
+      provider_address,
+      payment_type,
+      network,
+      confirmations
+    });
+
+    // Process different payment types
+    switch (payment_type) {
+      case 'gig_payment':
+        console.log(`Gig payment received for gig ${gig_id}, order ${order_id}: ${amount} ${currency}`);
+        // Process gig payment - update order status, notify provider
+        break;
+      case 'escrow_release':
+        console.log(`Escrow released for order ${order_id}: ${amount} ${currency} to provider ${provider_address}`);
+        // Process escrow release - update order completion, notify provider
+        break;
+      case 'refund':
+        console.log(`Refund processed for order ${order_id}: ${amount} ${currency} to client ${client_address}`);
+        // Process refund - update order status, notify client
+        break;
+      case 'tip':
+        console.log(`Tip received for gig ${gig_id}: ${amount} ${currency} to provider ${provider_address}`);
+        // Process tip - notify provider, update stats
+        break;
+      default:
+        console.log(`Unknown payment type: ${payment_type} for transaction ${transaction_hash}`);
+    }
+
+    // Validation checks
+    if (!transaction_hash || !contract_address || !amount || !currency) {
+      console.error('Missing required fields in webhook payload');
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Check confirmation threshold
+    const minConfirmations = parseInt(process.env.MIN_CONFIRMATIONS || '6');
+    if (confirmations && confirmations < minConfirmations) {
+      console.log(`Transaction ${transaction_hash} has only ${confirmations} confirmations, waiting for ${minConfirmations}`);
+      // You might want to store this and process later when enough confirmations
+    }
+
+    // Here you would typically:
+    // 1. Store the transaction in your database
+    // 2. Update gig/order status based on payment_type
+    // 3. Send notifications to relevant parties
+    // 4. Update smart contract state if needed
+    // 5. Process business logic (release escrow, complete order, etc.)
+
+    // Example response with processing details
+    const processingResult = {
+      status: 'received',
+      transaction_hash,
+      payment_type,
+      amount,
+      currency,
+      network,
+      confirmations,
+      processing_status: confirmations >= minConfirmations ? 'processed' : 'pending_confirmations',
+      processed_at: new Date().toISOString(),
+      order_id,
+      gig_id
+    };
+
+    console.log('Direct crypto payment processing result:', processingResult);
+
+    // Always respond with 200 OK to acknowledge receipt
+    res.status(200).json(processingResult);
+
+  } catch (error) {
+    console.error('Error processing direct crypto payment webhook:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.json({
@@ -525,7 +661,8 @@ app.get('/', (_req, res) => {
       health: '/health',
       webhook_nowpayments: '/webhook/nowpayments',
       webhook_coinpayments: '/webhook/coinpayments',
-      webhook_coinbase_commerce: '/webhook/coinbase-commerce'
+      webhook_coinbase_commerce: '/webhook/coinbase-commerce',
+      webhook_direct_crypto: '/webhook/direct-crypto'
     },
     tools: TOOL_NAMES,
     resources: ['config://server', 'status://{component}']
