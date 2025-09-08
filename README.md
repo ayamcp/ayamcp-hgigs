@@ -193,6 +193,48 @@ curl -X POST http://localhost:3000/mcp \
 - **Explorer**: https://hashscan.io/testnet
 - **RPC Endpoint**: https://testnet.hashio.io/api
 
+## Roadmap
+
+### Payment Provider Integrations
+- [ ] **NowPayments Integration** - Re-integrate NowPayments for cryptocurrency payment processing
+  - Direct crypto payments with webhook support
+  - Payment status tracking and order management
+  - Multi-currency support (BTC, ETH, HBAR, etc.)
+  - Invoice generation and payment confirmation
+
+- [ ] **Coinbase Commerce Integration** - Add Coinbase Commerce for mainstream crypto payments
+  - Simplified checkout experience
+  - Automatic payment detection
+  - Fiat-to-crypto conversion support
+  - Enterprise-grade security and compliance
+
+### Core Platform Enhancements
+- [ ] **Enhanced Error Handling** - Improve error messages and retry mechanisms
+- [ ] **Rate Limiting** - Implement request throttling for API stability
+- [ ] **Caching Layer** - Add Redis/memory caching for improved performance
+- [ ] **Webhook Management** - Centralized webhook handling and retry logic
+- [ ] **Multi-chain Support** - Extend beyond Hedera to Ethereum mainnet/L2s
+- [ ] **GraphQL API** - Add GraphQL endpoint for more flexible data queries
+
+### Developer Experience
+- [ ] **SDK Development** - Create TypeScript/JavaScript SDK for easier integration
+- [ ] **API Documentation** - Interactive documentation with examples
+- [ ] **Testing Suite** - Comprehensive unit and integration tests
+- [ ] **Docker Support** - Containerization for easier deployment
+- [ ] **Monitoring & Analytics** - Performance metrics and usage analytics
+
+### Security & Compliance
+- [ ] **Key Management** - Hardware security module (HSM) integration
+- [ ] **Audit Trail** - Comprehensive transaction logging
+- [ ] **Role-Based Access** - Multi-level permission system
+- [ ] **Compliance Tools** - KYC/AML integration capabilities
+
+### Future Integrations
+- [ ] **Stripe Connect** - Traditional payment processing for hybrid solutions
+- [ ] **PayPal** - Mainstream payment option integration
+- [ ] **IPFS Storage** - Decentralized storage for gig assets
+- [ ] **ENS/HNS** - Domain name service integration
+
 ## License
 
 MIT
