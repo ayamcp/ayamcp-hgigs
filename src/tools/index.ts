@@ -3,6 +3,7 @@ import { registerGigMarketplaceTool } from './gig-marketplace.js';
 import { registerNowPaymentsTool } from './nowpayments.js';
 import { registerCoinPaymentsTool } from './coinpayments.js';
 import { registerCoinbaseCommerceTool } from './coinbase-commerce.js';
+import { registerComput3Tool } from './comput3.js';
 
 export function registerAllTools(server: McpServer) {
   // Gig Marketplace tools
@@ -13,6 +14,9 @@ export function registerAllTools(server: McpServer) {
   
   // Coinbase Commerce tools
   registerCoinbaseCommerceTool(server);
+  
+  // Comput3 AI tools
+  registerComput3Tool(server);
 }
 
 export const TOOL_NAMES = [
@@ -42,5 +46,11 @@ export const TOOL_NAMES = [
   'coinbase-commerce-list-charges',
   'coinbase-commerce-verify-webhook',
   'coinbase-commerce-cancel-charge',
-  'coinbase-commerce-resolve-charge'
+  'coinbase-commerce-resolve-charge',
+  'comput3-text-completion',
+  'comput3-image-generation',
+  'comput3-video-generation',
+  'comput3-job-status',
+  'comput3-enhance-gig-description',
+  'comput3-generate-gig-image'
 ];
