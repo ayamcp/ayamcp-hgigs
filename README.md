@@ -2,12 +2,12 @@
 
 ## Project Information
 
-**Primary Contact:** East
-**Telegram Handle:** http://t.me/eastmaels
-**Team:** Solo  
-**Project Title:** GigMarketplace MCP Server  
+* **Primary Contact:** East
+* **Telegram Handle:** http://t.me/eastmaels
+* **Team:** Solo  
+*  **Project Title:** GigMarketplace MCP Server  
 
-**One-Sentence Elevator Pitch:** A Model Context Protocol server that enables AI agents to interact with the GigMarketplace smart contract on Hedera blockchain for decentralized gig economy operations.
+*  **One-Sentence Elevator Pitch:** A Model Context Protocol server that enables AI agents to interact with the GigMarketplace smart contract on Hedera blockchain for decentralized gig economy operations.
 
 ## Detailed Project Description
 
