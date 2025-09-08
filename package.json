@@ -12,10 +12,12 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.6",
+    "@types/qrcode": "^1.5.5",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "ethers": "^6.15.0",
     "express": "^4.21.2",
+    "qrcode": "^1.5.4",
     "zod": "^3.24.1"
   },
   "devDependencies": {

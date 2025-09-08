@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ethers } from 'ethers';
+import * as QRCode from 'qrcode';
 
 const CONTRACT_ADDRESS = '0x47fe84b56840a20BF579300207EBBaBc615AE1e9';
 const HEDERA_TESTNET_RPC = 'https://testnet.hashio.io/api';
@@ -819,6 +820,106 @@ export function registerGigMarketplaceTool(server: McpServer) {
           content: [{ 
             type: 'text', 
             text: `Error releasing payment: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Generate QR code for gig payment
+  server.registerTool(
+    'gig-marketplace-generate-payment-qr',
+    {
+      title: 'Generate Payment QR Code for Gig',
+      description: 'Generate a QR code for paying for a specific gig that can be scanned by HashPack wallet',
+      inputSchema: {
+        gigId: z.string().describe('The gig ID to generate payment QR code for'),
+        memo: z.string().optional().describe('Optional memo/note for the payment')
+      }
+    },
+    async ({ gigId, memo }) => {
+      try {
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, provider);
+        
+        // Get gig details
+        const gig = await contract.getGig(gigId);
+        const tokenInfo = getTokenInfo(gig[7]);
+        
+        if (!gig[5]) { // isActive
+          return {
+            content: [{ 
+              type: 'text', 
+              text: 'Error: This gig is not active and cannot be paid for.' 
+            }],
+            isError: true
+          };
+        }
+
+        // Convert price from wei to HBAR (assuming 18 decimals)
+        const priceInHbar = ethers.formatEther(gig[4]);
+        
+        // Create Hedera payment URI for HashPack
+        // Format: hbar://pay?to=address&amount=value&memo=message
+        const paymentData = {
+          to: gig[1], // provider address
+          amount: priceInHbar,
+          memo: memo || `Payment for gig: ${gig[2]}`, // gig title
+          gigId: gigId,
+          network: 'testnet'
+        };
+
+        // Create HashPack compatible URI
+        const hashpackUri = `hbar://pay?to=${paymentData.to}&amount=${paymentData.amount}&memo=${encodeURIComponent(paymentData.memo)}`;
+        
+        // Generate QR code as base64 data URI
+        const qrCodeDataUrl = await QRCode.toDataURL(hashpackUri, {
+          width: 300,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          }
+        });
+
+        return {
+          content: [{ 
+            type: 'text', 
+            text: JSON.stringify({
+              success: true,
+              gigDetails: {
+                id: gig[0].toString(),
+                title: gig[2],
+                description: gig[3],
+                provider: gig[1],
+                price: priceInHbar,
+                token: {
+                  symbol: tokenInfo.symbol,
+                  name: tokenInfo.name,
+                  isNative: tokenInfo.isNative
+                }
+              },
+              paymentInfo: {
+                uri: hashpackUri,
+                amount: paymentData.amount,
+                recipient: paymentData.to,
+                memo: paymentData.memo,
+                network: NETWORK_INFO.name
+              },
+              qrCode: {
+                dataUrl: qrCodeDataUrl,
+                instructions: "Scan this QR code with HashPack wallet to pay for the gig",
+                walletSupport: "HashPack, other Hedera wallets"
+              }
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: 'text', 
+            text: `Error generating payment QR code: ${error instanceof Error ? error.message : 'Unknown error'}` 
           }],
           isError: true
         };
