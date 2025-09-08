@@ -2,8 +2,8 @@
 
 ## Project Information
 
-**Primary Contact:** [Your Name]  
-**Telegram Handle:** [@your_telegram_handle]  
+**Primary Contact:** East
+**Telegram Handle:** http://t.me/eastmaels
 **Team:** Solo  
 **Project Title:** GigMarketplace MCP Server  
 
@@ -85,16 +85,6 @@ cp .env.example .env
 - `NOWPAYMENTS_IPN_SECRET`: IPN secret for webhook verification
 - `NOWPAYMENTS_SANDBOX`: Set to `true` for sandbox mode, `false` for production
 
-#### CoinPayments
-- `COINPAYMENTS_PUBLIC_KEY`: Your CoinPayments public key
-- `COINPAYMENTS_PRIVATE_KEY`: Your CoinPayments private key
-- `COINPAYMENTS_IPN_SECRET`: IPN secret for webhook verification
-- `COINPAYMENTS_MERCHANT_ID`: Your CoinPayments merchant ID
-
-#### Coinbase Commerce
-- `COINBASE_COMMERCE_API_KEY`: Your Coinbase Commerce API key
-- `COINBASE_COMMERCE_WEBHOOK_SECRET`: Webhook secret for signature verification
-
 ### Webhook URLs
 
 Configure webhook URLs based on your deployment:
@@ -106,8 +96,6 @@ Configure webhook URLs based on your deployment:
 
 **Production (example with Render):**
 - NowPayments: `https://ayamcp-hgigs.onrender.com/webhook/nowpayments`
-- CoinPayments: `https://ayamcp-hgigs.onrender.com/webhook/coinpayments`
-- Coinbase Commerce: `https://ayamcp-hgigs.onrender.com/webhook/coinbase-commerce`
 
 ### Claude Desktop Configuration
 
@@ -121,10 +109,7 @@ Add to your Claude Desktop MCP settings in `~/.config/claude-desktop/config.json
       "args": ["path/to/ayamcp-hgigs/dist/server.js"],
       "env": {
         "HEDERA_PRIVATE_KEY": "your_hedera_private_key_here",
-        "NOWPAYMENTS_API_KEY": "your_nowpayments_api_key_here",
-        "COINPAYMENTS_PUBLIC_KEY": "your_coinpayments_public_key_here",
-        "COINPAYMENTS_PRIVATE_KEY": "your_coinpayments_private_key_here",
-        "COINBASE_COMMERCE_API_KEY": "your_coinbase_commerce_api_key_here"
+        "NOWPAYMENTS_API_KEY": "your_nowpayments_api_key_here"
       }
     }
   }

@@ -323,4 +323,97 @@ The image should be visually appealing, professional, and represent the service 
       }
     }
   );
+
+  // Generate complete gig data tool
+  server.registerTool(
+    'comput3-generate-gig-data',
+    {
+      title: 'Generate Complete Gig Data',
+      description: 'Generate comprehensive gig data (title, description, price, token) using AI based on a service concept',
+      inputSchema: {
+        service_concept: z.string().describe('Brief description of the service/gig concept'),
+        category: z.string().optional().describe('The gig category (e.g., "design", "writing", "programming")'),
+        target_audience: z.string().optional().describe('Target audience for the service'),
+        experience_level: z.string().optional().describe('Service provider experience level (beginner, intermediate, expert)'),
+        price_range: z.string().optional().describe('Desired price range (e.g., "budget", "mid-range", "premium")'),
+        chain: z.string().optional().describe('Blockchain to use for payment (defaults to "Hedera")'),
+        token: z.string().optional().describe('Payment token to use (defaults to "HBAR")')
+      }
+    },
+    async ({ service_concept, category, target_audience, experience_level, price_range, chain, token }) => {
+      const selectedChain = chain || 'Hedera';
+      const selectedToken = token || 'HBAR';
+      
+      try {
+        const client = createComput3Client();
+        
+        const gigDataPrompt = `Generate comprehensive gig marketplace data for the following service concept:
+
+Service Concept: ${service_concept}
+${category ? `Category: ${category}` : ''}
+${target_audience ? `Target Audience: ${target_audience}` : ''}
+${experience_level ? `Provider Experience Level: ${experience_level}` : ''}
+${price_range ? `Price Range: ${price_range}` : ''}
+Blockchain: ${selectedChain}
+Payment Token: ${selectedToken}
+
+Please generate a JSON response with the following structure:
+{
+  "title": "Catchy, professional gig title (max 80 characters)",
+  "description": "Detailed, compelling gig description that highlights benefits, process, and deliverables (300-500 words)",
+  "price": "Suggested price in token amount (number only, appropriate for ${selectedToken} on ${selectedChain})",
+  "token": "${selectedToken}",
+  "chain": "${selectedChain}",
+  "tags": ["relevant", "keywords", "for", "discoverability"],
+  "delivery_time": "Estimated delivery time (e.g., '3 days', '1 week')",
+  "revisions": "Number of revisions included (e.g., 2, 3, 'unlimited')"
+}
+
+Make sure the data is professional, marketable, and appropriate for a gig marketplace. The title should be attention-grabbing, the description should be detailed and persuasive, and the price should be competitive for the service level.`;
+
+        const response = await client.createTextCompletion({
+          prompt: gigDataPrompt,
+          max_tokens: 800,
+          temperature: 0.8
+        });
+
+        let generatedData;
+        try {
+          const responseText = response.choices[0]?.text?.trim() || '';
+          generatedData = JSON.parse(responseText);
+        } catch (parseError) {
+          throw new Error('Failed to parse AI-generated gig data as JSON');
+        }
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              service_concept,
+              generated_data: generatedData,
+              chain_used: selectedChain,
+              token_used: selectedToken,
+              ready_for_marketplace: true,
+              usage: response.usage
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : 'Unknown error',
+              service_concept,
+              chain_requested: selectedChain,
+              token_requested: selectedToken
+            }, null, 2)
+          }],
+          isError: true
+        };
+      }
+    }
+  );
 }

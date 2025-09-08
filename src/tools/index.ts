@@ -1,8 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerGigMarketplaceTool } from './gig-marketplace.js';
 import { registerNowPaymentsTool } from './nowpayments.js';
-import { registerCoinPaymentsTool } from './coinpayments.js';
-import { registerCoinbaseCommerceTool } from './coinbase-commerce.js';
 import { registerComput3Tool } from './comput3.js';
 
 export function registerAllTools(server: McpServer) {
@@ -11,10 +9,7 @@ export function registerAllTools(server: McpServer) {
   
   // NowPayments tools
   registerNowPaymentsTool(server);
-  
-  // Coinbase Commerce tools
-  registerCoinbaseCommerceTool(server);
-  
+ 
   // Comput3 AI tools
   registerComput3Tool(server);
 }
@@ -41,12 +36,6 @@ export const TOOL_NAMES = [
   'nowpayments-create-invoice',
   'nowpayments-get-payment-status',
   'nowpayments-verify-webhook',
-  'coinbase-commerce-create-charge',
-  'coinbase-commerce-get-charge',
-  'coinbase-commerce-list-charges',
-  'coinbase-commerce-verify-webhook',
-  'coinbase-commerce-cancel-charge',
-  'coinbase-commerce-resolve-charge',
   'comput3-text-completion',
   'comput3-image-generation',
   'comput3-video-generation',
