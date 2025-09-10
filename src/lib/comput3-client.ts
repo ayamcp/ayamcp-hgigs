@@ -14,7 +14,7 @@ export class Comput3Client {
 
   constructor(config: Comput3Config) {
     this.config = {
-      baseUrl: 'https://api.comput3.ai/v1',
+      baseUrl: process.env.COMPUT3_BASE_URL || 'https://api.comput3.ai/v1',
       ...config
     };
   }
@@ -106,10 +106,11 @@ export class Comput3Client {
 
 export function createComput3Client(): Comput3Client {
   const apiKey = process.env.COMPUT3_API_KEY;
+  const baseUrl = process.env.COMPUT3_BASE_URL;
   
   if (!apiKey) {
     throw new Error('COMPUT3_API_KEY environment variable is required');
   }
 
-  return new Comput3Client({ apiKey });
+  return new Comput3Client({ apiKey, baseUrl });
 }
