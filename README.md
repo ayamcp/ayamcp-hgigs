@@ -172,6 +172,15 @@ curl -X POST http://localhost:3000/mcp \
 - `gig-marketplace-complete-order`: Submit complete order transaction
 - `gig-marketplace-release-payment`: Submit release payment transaction
 
+### Comput3 AI Tools
+- `comput3-text-completion`: Generate text completions using AI
+- `comput3-image-generation`: Generate images from text prompts
+- `comput3-video-generation`: Generate videos from text prompts
+- `comput3-job-status`: Check status of AI generation jobs
+- `comput3-enhance-gig-description`: Enhance gig descriptions using AI
+- `comput3-generate-gig-image`: Generate promotional images for gigs
+- `comput3-generate-gig-data`: Generate complete gig data from service concept
+
 ## Known Issues
 
 1. **Private Key Security**: Direct transaction submission requires private key in environment variables. For shared deployments, use transaction data generation tools instead.
