@@ -49,7 +49,7 @@ export class Comput3Client {
         prompt: request.prompt,
         max_tokens: request.max_tokens || 256,
         temperature: request.temperature || 0.7,
-        model: request.model || 'deepseek-v3.1'
+        model: request.model || 'kimi-k2'
       }),
     });
   }
@@ -63,7 +63,7 @@ export class Comput3Client {
         height: request.height || 512,
         steps: request.steps || 20,
         guidance_scale: request.guidance_scale || 7.5,
-        model: request.model || 'hermes4:70b'
+        model: request.model || 'kimi-k2'
       }),
     });
   }
@@ -77,7 +77,7 @@ export class Comput3Client {
         fps: request.fps || 24,
         width: request.width || 512,
         height: request.height || 512,
-        model: request.model || 'hermes4:405b'
+        model: request.model || 'kimi-k2'
       }),
     });
   }
