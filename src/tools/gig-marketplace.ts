@@ -58,7 +58,7 @@ const PRIVATE_KEY = process.env.HEDERA_PRIVATE_KEY;
 const GIG_MARKETPLACE_ABI = [
   // Read functions
   'function getGig(uint256 _gigId) external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted, address token))',
-  'function getOrder(uint256 _orderId) external view returns (tuple(uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, uint256 createdAt))',
+  'function getOrder(uint256 _orderId) external view returns (tuple(uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, bool paymentReleased, uint256 createdAt))',
   'function getProviderGigs(address _provider) external view returns (uint256[])',
   'function getClientOrders(address _client) external view returns (uint256[])',
   'function getAllActiveGigs() external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted, address token)[])',
@@ -70,7 +70,8 @@ const GIG_MARKETPLACE_ABI = [
   'function createGig(string memory _title, string memory _description, uint256 _price, address _token) external',
   'function updateGig(uint256 _gigId, string memory _title, string memory _description, uint256 _price, address _token) external',
   'function deactivateGig(uint256 _gigId) external',
-  'function orderGig(uint256 _gigId) external payable',
+  'function orderGig(uint256 _gigId) external',
+  'function payOrder(uint256 _orderId) external payable',
   'function completeOrder(uint256 _orderId) external',
   'function releasePayment(uint256 _orderId) external',
 ];
@@ -351,12 +352,12 @@ export function registerGigMarketplaceTool(server: McpServer) {
     }
   );
 
-  // Submit order gig transaction
+  // Submit order gig transaction (creates order without payment)
   server.registerTool(
     'gig-marketplace-order-gig',
     {
       title: 'Order Gig Transaction',
-      description: 'Submit a transaction to order a gig on the GigMarketplace contract',
+      description: 'Submit a transaction to create an order for a gig on the GigMarketplace contract (no payment required)',
       inputSchema: {
         gigId: z.string().describe('The gig ID to order')
       }
@@ -377,16 +378,96 @@ export function registerGigMarketplaceTool(server: McpServer) {
         const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
         const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, wallet);
 
-        // First get the gig details to know the price
-        const gig = await contract.getGig(gigId);
-        const gigPrice = gig[4]; // price is at index 4
+        // Estimate gas (no value needed now)
+        const gasEstimate = await contract.orderGig.estimateGas(gigId);
+        
+        // Submit transaction (no payment)
+        const tx = await contract.orderGig(gigId, {
+          gasLimit: gasEstimate * 120n / 100n
+        });
+
+        // Wait for confirmation
+        const receipt = await tx.wait();
+
+        // Extract order ID from logs if available
+        let orderId = null;
+        if (receipt?.logs && receipt.logs.length > 0) {
+          try {
+            const iface = new ethers.Interface(GIG_MARKETPLACE_ABI);
+            const parsedLog = iface.parseLog(receipt.logs[0]);
+            if (parsedLog?.name === 'OrderCreated') {
+              orderId = parsedLog.args[0].toString();
+            }
+          } catch (e) {
+            // Log parsing failed, continue without order ID
+          }
+        }
+
+        return {
+          content: [{ 
+            type: 'text', 
+            text: JSON.stringify({
+              success: true,
+              transactionHash: tx.hash,
+              blockNumber: receipt?.blockNumber,
+              gasUsed: receipt?.gasUsed?.toString(),
+              status: receipt?.status === 1 ? 'Success' : 'Failed',
+              gigId: gigId,
+              orderId: orderId,
+              message: 'Order created successfully. Use the order ID to generate a payment page.',
+              network: 'Hedera Testnet',
+              explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: 'text', 
+            text: `Error ordering gig: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Submit pay order transaction
+  server.registerTool(
+    'gig-marketplace-pay-order',
+    {
+      title: 'Pay Order Transaction',
+      description: 'Submit a transaction to pay for an existing order on the GigMarketplace contract',
+      inputSchema: {
+        orderId: z.string().describe('The order ID to pay for')
+      }
+    },
+    async ({ orderId }) => {
+      try {
+        if (!PRIVATE_KEY) {
+          return {
+            content: [{ 
+              type: 'text', 
+              text: 'Error: HEDERA_PRIVATE_KEY environment variable not set. Please configure your private key in Claude Desktop MCP settings.' 
+            }],
+            isError: true
+          };
+        }
+
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, wallet);
+
+        // Get the order details to know the payment amount
+        const order = await contract.getOrder(orderId);
+        const orderAmount = order[4]; // amount is at index 4
 
         // Estimate gas
-        const gasEstimate = await contract.orderGig.estimateGas(gigId, { value: gigPrice });
+        const gasEstimate = await contract.payOrder.estimateGas(orderId, { value: orderAmount });
         
-        // Submit transaction
-        const tx = await contract.orderGig(gigId, {
-          value: gigPrice,
+        // Submit payment transaction
+        const tx = await contract.payOrder(orderId, {
+          value: orderAmount,
           gasLimit: gasEstimate * 120n / 100n
         });
 
@@ -402,8 +483,9 @@ export function registerGigMarketplaceTool(server: McpServer) {
               blockNumber: receipt?.blockNumber,
               gasUsed: receipt?.gasUsed?.toString(),
               status: receipt?.status === 1 ? 'Success' : 'Failed',
-              gigId: gigId,
-              paidAmount: gigPrice.toString(),
+              orderId: orderId,
+              paidAmount: orderAmount.toString(),
+              message: 'Order payment successful. Funds are now held in escrow.',
               network: 'Hedera Testnet',
               explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
             }, null, 2)
@@ -413,7 +495,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
         return {
           content: [{ 
             type: 'text', 
-            text: `Error ordering gig: ${error instanceof Error ? error.message : 'Unknown error'}` 
+            text: `Error paying for order: ${error instanceof Error ? error.message : 'Unknown error'}` 
           }],
           isError: true
         };
@@ -549,52 +631,75 @@ export function registerGigMarketplaceTool(server: McpServer) {
     }
   );
 
-  // Generate payment page URL for gig
+  // Generate payment page URL for order
   server.registerTool(
     'gig-marketplace-get-payment-page',
     {
-      title: 'Get Payment Page URL for Gig',
-      description: 'Generate a frontend payment page URL for paying for a specific gig',
+      title: 'Get Payment Page URL for Order',
+      description: 'Generate a frontend payment page URL for paying for a specific order',
       inputSchema: {
-        gigId: z.string().describe('The gig ID to generate payment page URL for')
+        orderId: z.string().describe('The order ID to generate payment page URL for')
       }
     },
-    async ({ gigId }) => {
+    async ({ orderId }) => {
       try {
         const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
         const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, provider);
         
-        // Get gig details
-        const gig = await contract.getGig(gigId);
+        // Get order details
+        const order = await contract.getOrder(orderId);
+        
+        // Get associated gig details
+        const gig = await contract.getGig(order[1]); // gigId is at index 1
         const tokenInfo = getTokenInfo(gig[7]);
         
         if (!gig[5]) { // isActive
           return {
             content: [{ 
               type: 'text', 
-              text: 'Error: This gig is not active and cannot be paid for.' 
+              text: 'Error: The gig associated with this order is not active.' 
             }],
             isError: true
           };
         }
 
-        // Convert price from wei to HBAR (assuming 18 decimals)
-        const priceInHbar = ethers.formatEther(gig[4]);
+        if (order[6]) { // isPaid
+          return {
+            content: [{ 
+              type: 'text', 
+              text: 'Error: This order has already been paid.' 
+            }],
+            isError: true
+          };
+        }
+
+        // Convert amount from wei to HBAR (assuming 18 decimals)
+        const amountInHbar = ethers.formatEther(order[4]);
         
-        // Generate frontend payment page URL
-        const paymentPageUrl = `https://hgigs.vercel.app/payment/${gigId}`;
+        // Generate frontend payment page URL with orderId
+        const paymentPageUrl = `https://hgigs.vercel.app/payment/${orderId}`;
 
         return {
           content: [{ 
             type: 'text', 
             text: JSON.stringify({
               success: true,
+              orderDetails: {
+                id: order[0].toString(),
+                gigId: order[1].toString(),
+                client: order[2],
+                provider: order[3],
+                amount: amountInHbar,
+                isCompleted: order[5],
+                isPaid: order[6],
+                createdAt: order[7].toString()
+              },
               gigDetails: {
                 id: gig[0].toString(),
                 title: gig[2],
                 description: gig[3],
                 provider: gig[1],
-                price: priceInHbar,
+                price: ethers.formatEther(gig[4]),
                 token: {
                   symbol: tokenInfo.symbol,
                   name: tokenInfo.name,
@@ -603,10 +708,11 @@ export function registerGigMarketplaceTool(server: McpServer) {
               },
               paymentInfo: {
                 paymentPageUrl: paymentPageUrl,
-                amount: priceInHbar,
-                recipient: gig[1],
+                amount: amountInHbar,
+                recipient: order[3], // provider from order
                 network: NETWORK_INFO.name,
-                instructions: "Visit this payment page to pay for the gig with your wallet"
+                instructions: "Visit this payment page to pay for your order with your wallet",
+                memo: `Order ${orderId}: ${gig[2]}`
               }
             }, null, 2)
           }]

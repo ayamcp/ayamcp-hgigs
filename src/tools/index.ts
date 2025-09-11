@@ -15,13 +15,14 @@ export const TOOL_NAMES = [
   'gig-marketplace-get-gig',
   'gig-marketplace-get-active-gigs',
   
-  // Core Flow: Create Invoice
+  // Core Flow: Create Invoice/Order
   'gig-marketplace-create-gig-data',
   'gig-marketplace-create-gig',
-  
-  // Core Flow: Pay on Hedera
   'gig-marketplace-order-gig-data',
   'gig-marketplace-order-gig',
+  
+  // Core Flow: Pay on Hedera
+  'gig-marketplace-pay-order',
   'gig-marketplace-get-payment-page',
   
   // Core Flow: Fulfill + Comput3 Deliverables
