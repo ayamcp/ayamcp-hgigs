@@ -11,20 +11,20 @@ export function registerAllTools(server: McpServer) {
 }
 
 export const TOOL_NAMES = [
+  // Core Flow: Discover Gig
   'gig-marketplace-get-gig',
-  'gig-marketplace-get-order',
-  'gig-marketplace-get-provider-gigs',
-  'gig-marketplace-get-client-orders',
-  'gig-marketplace-get-stats',
   'gig-marketplace-get-active-gigs',
-  'gig-marketplace-generate-payment-qr',
+  
+  // Core Flow: Create Invoice
   'gig-marketplace-create-gig-data',
-  'gig-marketplace-update-gig-data',
-  'gig-marketplace-order-gig-data',
-  'gig-marketplace-complete-order-data',
-  'gig-marketplace-release-payment-data',
   'gig-marketplace-create-gig',
+  
+  // Core Flow: Pay on Hedera
+  'gig-marketplace-order-gig-data',
   'gig-marketplace-order-gig',
+  'gig-marketplace-get-payment-page',
+  
+  // Core Flow: Fulfill + Comput3 Deliverables
   'gig-marketplace-complete-order',
   'gig-marketplace-release-payment',
   'comput3-text-completion',
