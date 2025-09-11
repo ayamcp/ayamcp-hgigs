@@ -388,6 +388,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
 
         // Wait for confirmation
         const receipt = await tx.wait();
+        console.log('receipt', receipt)
 
         // Extract order ID from logs if available
         let orderId = null;
