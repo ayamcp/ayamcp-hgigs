@@ -403,6 +403,8 @@ export function registerGigMarketplaceTool(server: McpServer) {
           }
         }
 
+        const paymentPageUrl = orderId ? `https://hgigs.vercel.app/payment/${orderId}` : null;
+
         return {
           content: [{ 
             type: 'text', 
@@ -414,7 +416,10 @@ export function registerGigMarketplaceTool(server: McpServer) {
               status: receipt?.status === 1 ? 'Success' : 'Failed',
               gigId: gigId,
               orderId: orderId,
-              message: 'Order created successfully. Use the order ID to generate a payment page.',
+              paymentPageUrl: paymentPageUrl,
+              message: orderId 
+                ? `Order created successfully. Visit ${paymentPageUrl} to pay for your order.`
+                : 'Order created successfully. Use the order ID to generate a payment page.',
               network: 'Hedera Testnet',
               explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
             }, null, 2)
