@@ -58,7 +58,7 @@ const PRIVATE_KEY = process.env.HEDERA_PRIVATE_KEY;
 const GIG_MARKETPLACE_ABI = [
   // Read functions
   'function getGig(uint256 _gigId) external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted, address token))',
-  'function getOrder(uint256 _orderId) external view returns (tuple(uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, bool paymentReleased, uint256 createdAt))',
+  'function getOrder(uint256 _orderId) external view returns (tuple(uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, bool paymentReleased, uint256 createdAt, uint256 paidAmount, string deliverable))',
   'function getProviderGigs(address _provider) external view returns (uint256[])',
   'function getClientOrders(address _client) external view returns (uint256[])',
   'function getAllActiveGigs() external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted, address token)[])',
@@ -70,7 +70,7 @@ const GIG_MARKETPLACE_ABI = [
   'function createGig(string memory _title, string memory _description, uint256 _price, address _token) external',
   'function updateGig(uint256 _gigId, string memory _title, string memory _description, uint256 _price, address _token) external',
   'function deactivateGig(uint256 _gigId) external',
-  'function orderGig(uint256 _gigId) external',
+  'function orderGig(uint256 _gigId) external returns (uint256)',
   'function payOrder(uint256 _orderId) external payable',
   'function completeOrder(uint256 _orderId) external',
   'function releasePayment(uint256 _orderId) external',
@@ -381,7 +381,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
         // Estimate gas (no value needed now)
         const gasEstimate = await contract.orderGig.estimateGas(gigId);
         
-        // Submit transaction (no payment)
+        // Submit transaction (no payment) and get returned order ID
         const tx = await contract.orderGig(gigId, {
           gasLimit: gasEstimate * 120n / 100n
         });
@@ -390,21 +390,32 @@ export function registerGigMarketplaceTool(server: McpServer) {
         const receipt = await tx.wait();
         console.log('receipt', receipt)
 
-        // Extract order ID from logs if available
+        // Get the order ID from the contract call return value
+        // Since we need to call the contract again to get the return value after mining
         let orderId = null;
-        if (receipt?.logs && receipt.logs.length > 0) {
-          try {
-            const iface = new ethers.Interface(GIG_MARKETPLACE_ABI);
-            const parsedLog = iface.parseLog(receipt.logs[0]);
-            if (parsedLog?.name === 'OrderCreated') {
-              orderId = parsedLog.args[0].toString();
+        try {
+          // The orderGig function now returns the order ID, but since we already submitted the transaction,
+          // we need to extract it from logs or use the nextOrderId - 1
+          const currentNextOrderId = await contract.nextOrderId();
+          orderId = (currentNextOrderId - 1n).toString();
+        } catch (e) {
+          // Fallback to log parsing if above fails
+          if (receipt?.logs && receipt.logs.length > 0) {
+            try {
+              const iface = new ethers.Interface(GIG_MARKETPLACE_ABI);
+              const parsedLog = iface.parseLog(receipt.logs[0]);
+              if (parsedLog?.name === 'OrderCreated') {
+                orderId = parsedLog.args[0].toString();
+              }
+            } catch (logError) {
+              // Log parsing failed, continue without order ID
             }
-          } catch (e) {
-            // Log parsing failed, continue without order ID
           }
         }
 
-        const paymentPageUrl = orderId ? `https://hgigs.vercel.app/payment/${orderId}` : null;
+        // Generate both payment page URLs
+        const nativePaymentUrl = orderId ? `https://hgigs.vercel.app/payment/${orderId}` : null;
+        const tokenPaymentUrl = orderId ? `https://hgigs.vercel.app/payment-token/${orderId}` : null;
 
         return {
           content: [{ 
@@ -417,10 +428,19 @@ export function registerGigMarketplaceTool(server: McpServer) {
               status: receipt?.status === 1 ? 'Success' : 'Failed',
               gigId: gigId,
               orderId: orderId,
-              paymentPageUrl: paymentPageUrl,
+              paymentOptions: {
+                nativeToken: {
+                  url: nativePaymentUrl,
+                  description: "Pay with native HBAR"
+                },
+                erc20Token: {
+                  url: tokenPaymentUrl,
+                  description: "Pay with ERC20 tokens"
+                }
+              },
               message: orderId 
-                ? `Order created successfully. Visit ${paymentPageUrl} to pay for your order.`
-                : 'Order created successfully. Use the order ID to generate a payment page.',
+                ? `Order created successfully! Order ID: ${orderId}. Choose your payment method:\n• Native HBAR: ${nativePaymentUrl}\n• ERC20 Tokens: ${tokenPaymentUrl}`
+                : 'Order created successfully. Use the order ID to generate payment pages.',
               network: 'Hedera Testnet',
               explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
             }, null, 2)
@@ -637,6 +657,133 @@ export function registerGigMarketplaceTool(server: McpServer) {
     }
   );
 
+  // Check order payment status
+  server.registerTool(
+    'gig-marketplace-check-order-status',
+    {
+      title: 'Check Order Payment Status',
+      description: 'Check the payment and completion status of an order, including next steps for the user',
+      inputSchema: {
+        orderId: z.string().describe('The order ID to check status for')
+      }
+    },
+    async ({ orderId }) => {
+      try {
+        const provider = new ethers.JsonRpcProvider(HEDERA_TESTNET_RPC);
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, GIG_MARKETPLACE_ABI, provider);
+        
+        // Get order details
+        const order = await contract.getOrder(orderId);
+        console.log('order', order)
+        
+        // Get associated gig details for context
+        const gig = await contract.getGig(order[1]); // gigId is at index 1
+        const tokenInfo = getTokenInfo(gig[7]);
+        
+        // Extract order status flags based on contract structure:
+        // (uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, bool paymentReleased, uint256 createdAt)
+        const isCompleted = order[5];
+        const isPaid = order[6];
+        const paymentReleased = order[7];
+        
+        // Determine status and next action
+        let status, statusDescription, nextAction, actionableBy;
+        
+        if (!isPaid && !isCompleted && !paymentReleased) {
+          status = "Pending Payment";
+          statusDescription = "Order has been created but payment has not yet been received. The order exists but no funds are in escrow.";
+          nextAction = "Client needs to pay for the order using the payment page.";
+          actionableBy = "client";
+        } else if (isPaid && !isCompleted && !paymentReleased) {
+          status = "Paid - Work in Progress";
+          statusDescription = "Payment has been received and is held in the smart contract's escrow. Work can now begin.";
+          nextAction = "Provider should complete the work and mark the order as complete.";
+          actionableBy = "provider";
+        } else if (isPaid && isCompleted && !paymentReleased) {
+          status = "Completed - Awaiting Payment Release";
+          statusDescription = "Provider has marked the work as completed. Payment is still held in escrow awaiting client's approval.";
+          nextAction = "Client should review the work and release payment to the provider.";
+          actionableBy = "client";
+        } else if (isPaid && isCompleted && paymentReleased) {
+          status = "Complete";
+          statusDescription = "Transaction is complete. Payment has been released from escrow to the provider (minus platform fees).";
+          nextAction = "No further action required. Order is fully complete.";
+          actionableBy = "none";
+        } else {
+          status = "Unknown Status";
+          statusDescription = "Order is in an unexpected state.";
+          nextAction = "Please contact support for assistance.";
+          actionableBy = "support";
+        }
+        
+        // Generate payment page URLs if payment is still needed
+        const paymentPageUrls = !isPaid ? {
+          nativeToken: `https://hgigs.vercel.app/payment/${orderId}`,
+          erc20Token: `https://hgigs.vercel.app/payment-token/${orderId}`
+        } : null;
+
+        return {
+          content: [{ 
+            type: 'text', 
+            text: JSON.stringify({
+              success: true,
+              orderId: orderId,
+              status: status,
+              statusFlags: {
+                isPaid: isPaid,
+                isCompleted: isCompleted,
+                paymentReleased: paymentReleased
+              },
+              debug: {
+                rawOrderArray: {
+                  index5_isCompleted: order[5],
+                  index6_isPaid: order[6], 
+                  index7_paymentReleased: order[7],
+                  index8_createdAt: order[8].toString()
+                }
+              },
+              statusDescription: statusDescription,
+              nextAction: nextAction,
+              actionableBy: actionableBy,
+              orderDetails: {
+                id: order[0].toString(),
+                gigId: order[1].toString(),
+                client: order[2],
+                provider: order[3],
+                amount: ethers.formatEther(order[4]),
+                createdAt: order[8].toString(),
+                paidAmount: order[9] ? ethers.formatEther(order[9]) : "0",
+                deliverable: order[10] || ""
+              },
+              gigDetails: {
+                id: gig[0].toString(),
+                title: gig[2],
+                description: gig[3],
+                provider: gig[1],
+                price: ethers.formatEther(gig[4]),
+                token: {
+                  symbol: tokenInfo.symbol,
+                  name: tokenInfo.name,
+                  isNative: tokenInfo.isNative
+                }
+              },
+              paymentPageUrls: paymentPageUrls,
+              network: NETWORK_INFO.name
+            }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return {
+          content: [{ 
+            type: 'text', 
+            text: `Error checking order status: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          }],
+          isError: true
+        };
+      }
+    }
+  );
+
   // Generate payment page URL for order
   server.registerTool(
     'gig-marketplace-get-payment-page',
@@ -698,7 +845,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
                 amount: amountInHbar,
                 isCompleted: order[5],
                 isPaid: order[6],
-                createdAt: order[7].toString()
+                createdAt: order[8].toString()
               },
               gigDetails: {
                 id: gig[0].toString(),
