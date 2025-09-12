@@ -70,7 +70,7 @@ const GIG_MARKETPLACE_ABI = [
   'function createGig(string memory _title, string memory _description, uint256 _price, address _token) external',
   'function updateGig(uint256 _gigId, string memory _title, string memory _description, uint256 _price, address _token) external',
   'function deactivateGig(uint256 _gigId) external',
-  'function orderGig(uint256 _gigId) external',
+  'function orderGig(uint256 _gigId) external returns (uint256)',
   'function payOrder(uint256 _orderId) external payable',
   'function completeOrder(uint256 _orderId) external',
   'function releasePayment(uint256 _orderId) external',
@@ -381,7 +381,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
         // Estimate gas (no value needed now)
         const gasEstimate = await contract.orderGig.estimateGas(gigId);
         
-        // Submit transaction (no payment)
+        // Submit transaction (no payment) and get returned order ID
         const tx = await contract.orderGig(gigId, {
           gasLimit: gasEstimate * 120n / 100n
         });
@@ -390,21 +390,32 @@ export function registerGigMarketplaceTool(server: McpServer) {
         const receipt = await tx.wait();
         console.log('receipt', receipt)
 
-        // Extract order ID from logs if available
+        // Get the order ID from the contract call return value
+        // Since we need to call the contract again to get the return value after mining
         let orderId = null;
-        if (receipt?.logs && receipt.logs.length > 0) {
-          try {
-            const iface = new ethers.Interface(GIG_MARKETPLACE_ABI);
-            const parsedLog = iface.parseLog(receipt.logs[0]);
-            if (parsedLog?.name === 'OrderCreated') {
-              orderId = parsedLog.args[0].toString();
+        try {
+          // The orderGig function now returns the order ID, but since we already submitted the transaction,
+          // we need to extract it from logs or use the nextOrderId - 1
+          const currentNextOrderId = await contract.nextOrderId();
+          orderId = (currentNextOrderId - 1n).toString();
+        } catch (e) {
+          // Fallback to log parsing if above fails
+          if (receipt?.logs && receipt.logs.length > 0) {
+            try {
+              const iface = new ethers.Interface(GIG_MARKETPLACE_ABI);
+              const parsedLog = iface.parseLog(receipt.logs[0]);
+              if (parsedLog?.name === 'OrderCreated') {
+                orderId = parsedLog.args[0].toString();
+              }
+            } catch (logError) {
+              // Log parsing failed, continue without order ID
             }
-          } catch (e) {
-            // Log parsing failed, continue without order ID
           }
         }
 
-        const paymentPageUrl = orderId ? `https://hgigs.vercel.app/payment/${orderId}` : null;
+        // Generate both payment page URLs
+        const nativePaymentUrl = orderId ? `https://hgigs.vercel.app/payment/${orderId}` : null;
+        const tokenPaymentUrl = orderId ? `https://hgigs.vercel.app/payment-token/${orderId}` : null;
 
         return {
           content: [{ 
@@ -417,10 +428,19 @@ export function registerGigMarketplaceTool(server: McpServer) {
               status: receipt?.status === 1 ? 'Success' : 'Failed',
               gigId: gigId,
               orderId: orderId,
-              paymentPageUrl: paymentPageUrl,
+              paymentOptions: {
+                nativeToken: {
+                  url: nativePaymentUrl,
+                  description: "Pay with native HBAR"
+                },
+                erc20Token: {
+                  url: tokenPaymentUrl,
+                  description: "Pay with ERC20 tokens"
+                }
+              },
               message: orderId 
-                ? `Order created successfully. Visit ${paymentPageUrl} to pay for your order.`
-                : 'Order created successfully. Use the order ID to generate a payment page.',
+                ? `Order created successfully! Order ID: ${orderId}. Choose your payment method:\n• Native HBAR: ${nativePaymentUrl}\n• ERC20 Tokens: ${tokenPaymentUrl}`
+                : 'Order created successfully. Use the order ID to generate payment pages.',
               network: 'Hedera Testnet',
               explorerUrl: `https://hashscan.io/testnet/transaction/${tx.hash}`
             }, null, 2)
