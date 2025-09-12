@@ -58,7 +58,7 @@ const PRIVATE_KEY = process.env.HEDERA_PRIVATE_KEY;
 const GIG_MARKETPLACE_ABI = [
   // Read functions
   'function getGig(uint256 _gigId) external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted, address token))',
-  'function getOrder(uint256 _orderId) external view returns (tuple(uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, bool paymentReleased, uint256 createdAt))',
+  'function getOrder(uint256 _orderId) external view returns (tuple(uint256 id, uint256 gigId, address client, address provider, uint256 amount, bool isCompleted, bool isPaid, bool paymentReleased, uint256 createdAt, uint256 paidAmount, string deliverable))',
   'function getProviderGigs(address _provider) external view returns (uint256[])',
   'function getClientOrders(address _client) external view returns (uint256[])',
   'function getAllActiveGigs() external view returns (tuple(uint256 id, address provider, string title, string description, uint256 price, bool isActive, bool isCompleted, address token)[])',
@@ -674,6 +674,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
         
         // Get order details
         const order = await contract.getOrder(orderId);
+        console.log('order', order)
         
         // Get associated gig details for context
         const gig = await contract.getGig(order[1]); // gigId is at index 1
@@ -733,6 +734,14 @@ export function registerGigMarketplaceTool(server: McpServer) {
                 isCompleted: isCompleted,
                 paymentReleased: paymentReleased
               },
+              debug: {
+                rawOrderArray: {
+                  index5_isCompleted: order[5],
+                  index6_isPaid: order[6], 
+                  index7_paymentReleased: order[7],
+                  index8_createdAt: order[8].toString()
+                }
+              },
               statusDescription: statusDescription,
               nextAction: nextAction,
               actionableBy: actionableBy,
@@ -742,7 +751,9 @@ export function registerGigMarketplaceTool(server: McpServer) {
                 client: order[2],
                 provider: order[3],
                 amount: ethers.formatEther(order[4]),
-                createdAt: order[8].toString()
+                createdAt: order[8].toString(),
+                paidAmount: order[9] ? ethers.formatEther(order[9]) : "0",
+                deliverable: order[10] || ""
               },
               gigDetails: {
                 id: gig[0].toString(),
@@ -834,7 +845,7 @@ export function registerGigMarketplaceTool(server: McpServer) {
                 amount: amountInHbar,
                 isCompleted: order[5],
                 isPaid: order[6],
-                createdAt: order[7].toString()
+                createdAt: order[8].toString()
               },
               gigDetails: {
                 id: gig[0].toString(),
